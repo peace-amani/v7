@@ -3,6 +3,26 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// ── Fix 0: gifted-btns baileys shims ────────────────────────────────────────
+// gifted-btns uses `await import()` internally to load baileys internals.
+// This project uses 'wolfsocket' (a baileys fork), so we create ESM shim
+// packages for every name gifted-btns tries to import from.
+const BAILEYS_SHIMS = [
+  'baileys',
+  'gifted-baileys',
+  path.join('@whiskeysockets', 'baileys'),
+  path.join('@adiwajshing', 'baileys'),
+];
+const SHIM_PKG  = '{"name":"__baileys-shim__","version":"1.0.0","type":"module","main":"index.js"}\n';
+const SHIM_CODE = "export * from 'wolfsocket';\nexport { default } from 'wolfsocket';\n";
+for (const pkg of BAILEYS_SHIMS) {
+  const dir = path.join(root, 'node_modules', pkg);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), SHIM_PKG);
+  fs.writeFileSync(path.join(dir, 'index.js'),     SHIM_CODE);
+}
+
+
 const root = path.join(__dirname, '..');
 
 // ── Fix 1: dotenv index.js shim ─────────────────────────────────────────────
