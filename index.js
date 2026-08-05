@@ -371,7 +371,8 @@ async function resolvePhoneFromLidAsync(jid) {
     return null;
 }
 globalThis.resolvePhoneFromLidAsync = resolvePhoneFromLidAsync;
-globalThis.pg = pg;
+globalThis.pg    = pg;
+globalThis.mongo = mongo;
 
 async function resolvePhoneFromGroup(senderJid, chatId, sock) {
     return resolveSenderFromGroup(senderJid, chatId, sock);
@@ -742,6 +743,7 @@ import persistentConfig from './lib/persistentConfig.js';
 import banCommand from './commands/group/ban.js';
 import { setupWebServer, updateWebStatus } from './lib/webServer.js';
 import pg from './lib/pgAdapter.js';
+import mongo from './lib/mongoAdapter.js';
 
 // Pre-imported group event modules (avoids dynamic import disk I/O in hot event handlers)
 import { handleGroupParticipantUpdate as antidemoteHandler } from './commands/group/antidemote.js';
@@ -5232,8 +5234,10 @@ function printWolfStartupBlock({ botName, version, platform, prefix, mode,
     const dbOk  = ks.dbStatus.includes('✅');
     const ptOk  = ks.pteroStatus.includes('✅');
     const pyOk  = ks.paystackStatus.includes('✅');
-    const pgOk  = !!(globalThis.pg?.isReady);
-    const pgTbl = globalThis.pg?.tableCount || 0;
+    const pgOk    = !!(globalThis.pg?.isReady);
+    const pgTbl   = globalThis.pg?.tableCount || 0;
+    const mongoOk = !!(globalThis.mongo?.isReady);
+    const mongoCl = globalThis.mongo?.collCount || 0;
     const time  = new Date().toLocaleTimeString('en-GB', { hour12: false });
     const status = isReconnect ? 'RECONNECTED' : 'ONLINE';
 
@@ -5280,6 +5284,10 @@ function printWolfStartupBlock({ botName, version, platform, prefix, mode,
         row('PostgreSQL',  avail(pgOk,  pgTbl ? `connected · ${pgTbl} tables` : 'connected',
             process.env.DATABASE_URL
                 ? `failed · ${(globalThis.pg?.lastError || 'unknown error').slice(0, 40)}`
+                : 'not set'), ''),
+        row('MongoDB',     avail(mongoOk, mongoCl ? `connected · ${mongoCl} collections` : 'connected',
+            process.env.MONGODB_URI
+                ? `failed · ${(globalThis.mongo?.lastError || 'unknown error').slice(0, 40)}`
                 : 'not set'), ''),
         row('Pterodactyl', avail(ptOk,  'set', 'not set'),   ''),
         row('Paystack',    avail(pyOk,  'set', 'not set'),   ''),
@@ -5469,6 +5477,52 @@ async function initDatabase() {
         }
     } catch (_pgErr) {
         console.warn(`[PG→SQLite] Restore skipped: ${_pgErr.message}`);
+    }
+
+    // ── MongoDB → SQLite restore (cold-start recovery) ────────────────────
+    // Mirrors the PG restore pattern — pulls bot_configs from MongoDB into
+    // the fresh SQLite DB so settings survive container resets on platforms
+    // with ephemeral filesystems (Render, Railway, etc.).
+    try {
+        const mongoReady = await mongo.waitForReady(10000);
+        if (mongoReady) {
+            // Attempt to auto-detect botId from MongoDB on cold restart
+            if (supabaseDb.getConfigBotId() === 'default' && !process.env.OWNER_NUMBER) {
+                try {
+                    const _phoneVal = await mongo.getConfigValue('default', '__bot_phone__');
+                    if (_phoneVal) {
+                        const _detectedPhone = String(_phoneVal).replace(/[^0-9]/g, '');
+                        if (_detectedPhone.length >= 7) {
+                            supabaseDb.setConfigBotId(_detectedPhone);
+                            console.log(`[Mongo→SQLite] 🔍 Auto-detected botId from MongoDB: ${_detectedPhone}`);
+                        }
+                    }
+                } catch {}
+            }
+            // Restore configs — upsert into SQLite without overwriting existing rows
+            const _mR = await mongo.restoreConfigs(async (key, value, botId) => {
+                const { upsert, getConfigBotId: _gId } = supabaseDb;
+                // Only restore if the row is absent in SQLite
+                const existing = supabaseDb.getConfigSync
+                    ? supabaseDb.getConfigSync(key, null)
+                    : null;
+                if (existing === null || existing === undefined) {
+                    await supabaseDb.upsert('bot_configs', {
+                        key,
+                        value,
+                        bot_id: botId || _gId(),
+                        updated_at: new Date().toISOString()
+                    }, 'key,bot_id');
+                }
+            });
+            if (_mR?.restored > 0) {
+                console.log(`[Mongo→SQLite] ♻️  Restored ${_mR.restored} rows from MongoDB`);
+            }
+        } else if (process.env.MONGODB_URI) {
+            console.warn('[Mongo→SQLite] MongoDB did not become ready within 10 s — skipping restore');
+        }
+    } catch (_mErr) {
+        console.warn(`[Mongo→SQLite] Restore skipped: ${_mErr.message}`);
     }
 
     // ── MySettings restore ────────────────────────────────────────────────
