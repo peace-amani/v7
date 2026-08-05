@@ -742,6 +742,7 @@ import { recordActivity as recordGroupActivity } from './lib/groupActivity.js';
 import persistentConfig from './lib/persistentConfig.js';
 import banCommand from './commands/group/ban.js';
 import { setupWebServer, updateWebStatus } from './lib/webServer.js';
+import { setupSelfPing } from './lib/selfPing.js';
 import pg from './lib/pgAdapter.js';
 import mongo from './lib/mongoAdapter.js';
 
@@ -9664,7 +9665,8 @@ async function main() {
         try { await _dbInitPromise; } catch {}
         // printStartupBox removed — replaced by printWolfStartupBlock in handleConnectionOpen
         await setupWebServer();
-        setupHerokuKeepAlive();
+        setupSelfPing();
+        setupHerokuKeepAlive(); // legacy Heroku memory monitor — keep for now
 
         // ====== HEROKU DETECTION & SETUP ======
         const isHeroku = process.env.HEROKU_APP_NAME || process.env.DYNO || process.env.HEROKU_API_KEY || false;
