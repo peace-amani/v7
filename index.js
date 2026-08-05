@@ -44,7 +44,7 @@ process.on('warning', (warning) => {
 //
 // Features: Real-time prefix changes, UltimateFix, Status Detection, Auto-Connect
 // SUPER CLEAN TERMINAL - Zero spam, Zero session noise, Rate limit protection
-// Version: 1.1.5 | Modes: public / silent / groups / dms / buttons / channel
+// Version: 1.1.7 | Modes: public / silent / groups / dms / buttons / channel
 
 // ====== PERFORMANCE OPTIMIZATIONS APPLIED ======
 // 1. Reduced mandatory delays from 1000ms to 100ms
@@ -827,7 +827,7 @@ try {
 let BOT_NAME = _getBotName();
 global.BOT_NAME = BOT_NAME;
 function getCurrentBotName() { return _getBotName(); }
-const VERSION = '1.1.5';
+const VERSION = '1.1.7';
 global.VERSION = VERSION;
 const _rawEnvPrefix = process.env.BOT_PREFIX || process.env.PREFIX || '';
 const DEFAULT_PREFIX = (_rawEnvPrefix && _rawEnvPrefix.length <= 5) ? _rawEnvPrefix : '.';

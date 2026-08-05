@@ -79,7 +79,7 @@ export default {
     let statusMessage;
     try {
       statusMessage = await sock.sendMessage(jid, {
-        text: `🚀 *${getBotName()} Start v1.1.5*\nStarting bot with latest updates...`
+        text: `🚀 *${getBotName()} Start v1.1.7*\nStarting bot with latest updates...`
       }, { quoted: m });
 
       const editStatus = async (text) => {

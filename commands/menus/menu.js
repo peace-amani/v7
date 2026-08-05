@@ -1261,7 +1261,7 @@ case 1: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   // ========== IMPROVED DEPLOYMENT PLATFORM DETECTION ==========
@@ -2791,7 +2791,7 @@ case 3: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   const getDeploymentPlatform = () => {
@@ -3854,7 +3854,7 @@ case 4: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   const getDeploymentPlatform = () => {
@@ -5540,7 +5540,7 @@ case 5: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   // ========== IMPROVED DEPLOYMENT PLATFORM DETECTION ==========
@@ -6681,7 +6681,7 @@ case 6: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   // ========== IMPROVED DEPLOYMENT PLATFORM DETECTION (from case 7) ==========
@@ -8512,7 +8512,7 @@ case 7: {
         }
       }
     } catch (error) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   // ========== IMPROVED DEPLOYMENT PLATFORM DETECTION ==========
@@ -9452,7 +9452,7 @@ case 9: {
         if (fs.existsSync(p)) { try { const s = JSON.parse(fs.readFileSync(p, 'utf8')); if (s.version?.trim()) return s.version.trim(); } catch (e) {} }
       }
     } catch (e) {}
-    return '1.1.5';
+    return '1.1.7';
   };
   
   const ownerName9        = getOwnerName9();

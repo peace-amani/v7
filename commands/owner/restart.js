@@ -51,7 +51,7 @@ export default {
     let statusMessage;
     try {
       statusMessage = await sock.sendMessage(jid, {
-        text: `🔄 *${getBotName()} Restart v1.1.5*\nStarting restart process...`
+        text: `🔄 *${getBotName()} Restart v1.1.7*\nStarting restart process...`
       }, { quoted: m });
 
       const editStatus = async (text) => {
