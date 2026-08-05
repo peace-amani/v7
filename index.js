@@ -6600,24 +6600,10 @@ async function startBot(loginMode = 'auto', loginData = null) {
                         const successMessage = `${_sGreeting}╭⊷『 🐺 ${getCurrentBotName()} 』\n│\n├⊷ *Name:* ${getCurrentBotName()}\n├⊷ *Prefix:* ${getCurrentPrefix() || 'none (prefixless)'}\n├⊷ *Owner:* (${displayOwnerNumber})\n├⊷ *Platform:* ${detectPlatform()}\n├⊷ *Mode:* ${BOT_MODE}\n└⊷ *Status:* ✅ Connected\n\n╰⊷ *Silent Wolf Online* 🐾\n\n─────────────────────\n⭐ Follow me on GitHub: ${PROFILE_URL}`;
                         
                         const targetJid = (ownerInfo && ownerInfo.ownerJid) ? ownerInfo.ownerJid : sock.user.id;
-                        const _gb = globalThis._giftedBtns;
+                        // Always use plain text for the connection message — it goes to the owner's DM,
+                        // and gifted-btns interactive messages fail silently in DMs on modern WhatsApp.
                         let sendPromise;
-                        if (_gb && typeof _gb.sendInteractiveMessage === 'function') {
-                            sendPromise = _gb.sendInteractiveMessage(sock, targetJid, {
-                                text: successMessage,
-                                footer: `🐺 ${getCurrentBotName()}`,
-                                interactiveButtons: [{
-                                    name: 'cta_url',
-                                    buttonParamsJson: JSON.stringify({
-                                        display_text: '🔗 Open GitHub',
-                                        url:          PROFILE_URL,
-                                        merchant_url: PROFILE_URL
-                                    })
-                                }]
-                            });
-                        } else {
-                            sendPromise = originalSendMessage(targetJid, { text: successMessage });
-                        }
+                        sendPromise = originalSendMessage(targetJid, { text: successMessage });
                         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
                         await Promise.race([sendPromise, timeoutPromise]);
                         _lastConnectionMsgTime = Date.now();
