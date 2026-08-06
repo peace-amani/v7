@@ -1,29 +1,43 @@
 import { downloadContentFromMessage, generateWAMessageContent, generateWAMessageFromContent } from 'wolfsocket';
 import crypto from 'crypto';
 import { PassThrough } from 'stream';
-import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
+import { getOwnerName, getFooter } from '../../lib/menuHelper.js';
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PENDING-MEDIA CACHE
+   When the user calls .togstatus from a DM without specifying a group JID,
+   we show them a group list and store the media here so the second step
+   (replying with a number) can retrieve and post it.
+
+   Key   → sent list message ID (stanzaId)
+   Value → { payload, mediaType, senderJid }
+───────────────────────────────────────────────────────────────────────────── */
+const togStatusSessionCache = new Map();
+globalThis.togStatusSessionCache = togStatusSessionCache;
+const MAX_SESSION_CACHE = 30;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────────────────────────────────────── */
 async function toVN(inputBuffer) {
     return new Promise((resolve, reject) => {
         try {
             import('fluent-ffmpeg').then(ffmpeg => {
-                const inStream = new PassThrough();
+                const inStream  = new PassThrough();
                 inStream.end(inputBuffer);
                 const outStream = new PassThrough();
-                const chunks = [];
-
+                const chunks    = [];
                 ffmpeg.default(inStream)
                     .noVideo()
-                    .audioCodec("libopus")
-                    .format("ogg")
-                    .audioBitrate("48k")
+                    .audioCodec('libopus')
+                    .format('ogg')
+                    .audioBitrate('48k')
                     .audioChannels(1)
                     .audioFrequency(48000)
-                    .on("error", reject)
-                    .on("end", () => resolve(Buffer.concat(chunks)))
+                    .on('error', reject)
+                    .on('end', () => resolve(Buffer.concat(chunks)))
                     .pipe(outStream, { end: true });
-
-                outStream.on("data", chunk => chunks.push(chunk));
+                outStream.on('data', chunk => chunks.push(chunk));
             }).catch(() => resolve(inputBuffer));
         } catch {
             resolve(inputBuffer);
@@ -33,10 +47,8 @@ async function toVN(inputBuffer) {
 
 async function downloadToBuffer(message, type) {
     const stream = await downloadContentFromMessage(message, type);
-    let buffer = Buffer.from([]);
-    for await (const chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk]);
-    }
+    let buffer   = Buffer.from([]);
+    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
     return buffer;
 }
 
@@ -62,7 +74,7 @@ async function buildPayloadFromQuoted(quotedMessage) {
         if (quotedMessage.audioMessage.ptt) {
             try {
                 const audioVn = await toVN(buffer);
-                return { audio: audioVn, mimetype: "audio/ogg; codecs=opus", ptt: true };
+                return { audio: audioVn, mimetype: 'audio/ogg; codecs=opus', ptt: true };
             } catch {
                 return { audio: buffer, mimetype: quotedMessage.audioMessage.mimetype || 'audio/mpeg', ptt: true };
             }
@@ -80,17 +92,38 @@ async function buildPayloadFromQuoted(quotedMessage) {
     return null;
 }
 
+// Build a media payload from a directly-sent image/video/audio (not a quoted one)
+async function buildPayloadFromDirectMedia(msg) {
+    const directImage = msg.message?.imageMessage;
+    const directVideo = msg.message?.videoMessage;
+    const directAudio = msg.message?.audioMessage;
+
+    if (directImage) {
+        const buffer = await downloadToBuffer(directImage, 'image');
+        return { payload: { image: buffer, caption: directImage.caption || '' }, mediaType: 'Image' };
+    }
+    if (directVideo) {
+        const buffer = await downloadToBuffer(directVideo, 'video');
+        return { payload: { video: buffer, caption: directVideo.caption || '', mimetype: directVideo.mimetype || 'video/mp4' }, mediaType: 'Video' };
+    }
+    if (directAudio) {
+        const buffer = await downloadToBuffer(directAudio, 'audio');
+        return { payload: { audio: buffer, mimetype: directAudio.mimetype || 'audio/mp4', ptt: directAudio.ptt || false }, mediaType: 'Audio' };
+    }
+    return null;
+}
+
 function detectMediaType(quotedMessage) {
     if (!quotedMessage) return 'Text';
-    if (quotedMessage.videoMessage) return 'Video';
-    if (quotedMessage.imageMessage) return 'Image';
-    if (quotedMessage.audioMessage) return 'Audio';
+    if (quotedMessage.videoMessage)   return 'Video';
+    if (quotedMessage.imageMessage)   return 'Image';
+    if (quotedMessage.audioMessage)   return 'Audio';
     if (quotedMessage.stickerMessage) return 'Sticker';
     return 'Text';
 }
 
 async function sendGroupStatus(conn, jid, content) {
-    const inside = await generateWAMessageContent(content, { upload: conn.waUploadToServer });
+    const inside        = await generateWAMessageContent(content, { upload: conn.waUploadToServer });
     const messageSecret = crypto.randomBytes(32);
     const m = generateWAMessageFromContent(jid, {
         messageContextInfo: { messageSecret },
@@ -101,75 +134,250 @@ async function sendGroupStatus(conn, jid, content) {
 }
 
 function stripCommand(messageText) {
-    return messageText.replace(/^[^a-zA-Z0-9]?(togstatus|swgc|groupstatus|tosgroup|gs|gstatus|togroupstatus)\s*/i, '').trim();
+    return messageText
+        .replace(/^[^a-zA-Z0-9]?(togstatus|swgc|groupstatus|tosgroup|gs|gstatus|togroupstatus)\s*/i, '')
+        .trim();
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHOW GROUP LIST  (DM flow — step 1)
+   Fetches all groups, shows a numbered list, caches pending media so the
+   reply-with-number handler (step 2) can post it.
+───────────────────────────────────────────────────────────────────────────── */
+async function showGroupListForStatus(sock, jid, msg, payload, mediaType, PREFIX) {
+    let groups;
+    try {
+        groups = await sock.groupFetchAllParticipating();
+    } catch (err) {
+        return sock.sendMessage(jid, {
+            text: `❌ Failed to fetch groups: ${err.message}`
+        }, { quoted: msg });
+    }
+
+    const entries   = Object.values(groups || {});
+    const metaCache = globalThis.groupMetadataCache;
+
+    const resolved = await Promise.all(entries.map(async (g) => {
+        let name = (g.subject || '').trim();
+        if (!name && metaCache) {
+            const cached = metaCache.get(g.id);
+            if (cached?.data?.subject) name = cached.data.subject.trim();
+        }
+        if (!name) {
+            try {
+                const meta = await sock.groupMetadata(g.id);
+                if (meta?.subject) name = meta.subject.trim();
+            } catch {}
+        }
+        return { id: g.id, name: name || 'Unnamed Group' };
+    }));
+
+    resolved.sort((a, b) => a.name.localeCompare(b.name));
+
+    const PAGE_SIZE = 20;
+    const slice     = resolved.slice(0, PAGE_SIZE);
+
+    let text  = `╭─⌈ 👥 *SELECT A GROUP* ⌋\n│\n`;
+    text     += `│  📊 ${resolved.length} group${resolved.length !== 1 ? 's' : ''} · `;
+    text     += `📤 posting *${mediaType}*\n│\n`;
+    slice.forEach((g, i) => {
+        text += `├─⊷ *${i + 1}.* ${g.name}\n`;
+    });
+    if (resolved.length > PAGE_SIZE) {
+        text += `│\n├─⊷ _(showing first ${PAGE_SIZE} — use \`${PREFIX}togstatus <JID>\` for others)_\n`;
+    }
+    text += `│\n╰─ Reply to this message with *${PREFIX}togstatus <number>* to post`;
+
+    const sent   = await sock.sendMessage(jid, { text }, { quoted: msg });
+    const sentId = sent?.key?.id;
+    if (sentId) {
+        const senderJid = msg.key.participant || (msg.key.fromMe ? sock.user?.id : jid);
+        togStatusSessionCache.set(sentId, { payload, mediaType, groups: resolved, senderJid });
+        if (togStatusSessionCache.size > MAX_SESSION_CACHE) {
+            togStatusSessionCache.delete(togStatusSessionCache.keys().next().value);
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COMMAND EXPORT
+───────────────────────────────────────────────────────────────────────────── */
 export default {
     name: 'togstatus',
     aliases: ['swgc', 'groupstatus', 'tosgroup', 'gs', 'gstatus', 'togroupstatus'],
-    description: 'Send group status updates (text, images, videos, audio, stickers)',
+    description: 'Post to group status — works from inside a group or from any DM',
     category: 'group',
     adminOnly: false,
 
     async execute(sock, m, args, PREFIX, extra) {
         try {
-            const jid = m.key.remoteJid;
-
-            if (!jid.endsWith('@g.us')) {
-                return sock.sendMessage(jid, {
-                    text: '❌ This command only works in groups!'
-                }, { quoted: m });
-            }
-
+            const jid        = m.key.remoteJid;
+            const isGroup    = jid.endsWith('@g.us');
+            const isDM       = !isGroup;
             const messageText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
             const quotedMessage = m.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            const quotedId   = m.message?.extendedTextMessage?.contextInfo?.stanzaId;
             const textAfterCommand = stripCommand(messageText);
 
-            if (!quotedMessage && !textAfterCommand && !messageText.trim()) {
-                return sock.sendMessage(jid, {
-                    text: `╭─⌈ 💡 *GROUP STATUS* ⌋\n│\n├─⊷ *${PREFIX}togstatus* (reply)\n│  └⊷ Reply to media/text\n├─⊷ *${PREFIX}togstatus Your text here*\n│  └⊷ Post text status\n╰⊷ ${getFooter(m.key.participant || m.key.remoteJid)}`
-                }, { quoted: m });
+            /* ──────────────────────────────────────────────────────────────
+               STEP 2 — DM reply-with-number handler
+               User replied to the group list we sent them with a number.
+            ────────────────────────────────────────────────────────────── */
+            if (isDM && quotedId && togStatusSessionCache.has(quotedId) && /^\d+$/.test(textAfterCommand)) {
+                const session  = togStatusSessionCache.get(quotedId);
+                const idx      = parseInt(textAfterCommand, 10) - 1;
+                const group    = session.groups[idx];
+
+                if (!group) {
+                    return sock.sendMessage(jid, {
+                        text: `❌ No group at position *${textAfterCommand}*. The list has *${session.groups.length}* groups.`
+                    }, { quoted: m });
+                }
+
+                await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
+                await sendGroupStatus(sock, group.id, session.payload);
+                await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+
+                togStatusSessionCache.delete(quotedId); // clean up
+
+                let successMsg = `✅ *${session.mediaType}* posted to group status!\n`;
+                successMsg    += `👥 *${group.name}*\n`;
+                if (session.payload.caption) successMsg += `📝 "${session.payload.caption.substring(0, 80)}"\n`;
+                if (session.payload.text)    successMsg += `📄 "${session.payload.text.substring(0, 80)}"\n`;
+                successMsg    += `\n👁️ Visible to all group members`;
+
+                return sock.sendMessage(jid, { text: successMsg }, { quoted: m });
             }
 
-            let payload = null;
+            /* ──────────────────────────────────────────────────────────────
+               GROUP FLOW (unchanged behaviour)
+               Command was sent inside a group — post to this group's status.
+            ────────────────────────────────────────────────────────────── */
+            if (isGroup) {
+                if (!quotedMessage && !textAfterCommand) {
+                    return sock.sendMessage(jid, {
+                        text:
+                            `╭─⌈ 💡 *GROUP STATUS* ⌋\n│\n` +
+                            `├─⊷ *${PREFIX}togstatus* (reply)\n│  └⊷ Reply to media/text\n` +
+                            `├─⊷ *${PREFIX}togstatus Your text here*\n│  └⊷ Post text status\n` +
+                            `╰⊷ ${getFooter(m.key.participant || m.key.remoteJid)}`
+                    }, { quoted: m });
+                }
+
+                let payload = null;
+                let mediaType = 'Text';
+
+                if (quotedMessage) {
+                    mediaType = detectMediaType(quotedMessage);
+                    payload   = await buildPayloadFromQuoted(quotedMessage);
+                    if (payload && (payload.video || payload.image) && textAfterCommand) {
+                        payload.caption = textAfterCommand;
+                    }
+                } else if (textAfterCommand) {
+                    payload = { text: textAfterCommand };
+                }
+
+                if (!payload) {
+                    return sock.sendMessage(jid, { text: '❌ Could not process the message.' }, { quoted: m });
+                }
+
+                await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
+                await sendGroupStatus(sock, jid, payload);
+                await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+
+                let successMsg = `✅ ${mediaType} group status posted!\n`;
+                if (payload.caption) successMsg += `📝 Caption: "${payload.caption.substring(0, 80)}"\n`;
+                if (payload.text)    successMsg += `📄 "${payload.text.substring(0, 80)}"\n`;
+                successMsg += `\n👥 Visible to all group members`;
+                return sock.sendMessage(jid, { text: successMsg }, { quoted: m });
+            }
+
+            /* ──────────────────────────────────────────────────────────────
+               DM FLOW — step 1
+               Command was sent in a DM (private chat).
+               Accepted forms:
+                 a) .togstatus 1234567890-1234567890@g.us  (reply to media)
+                    → post directly to that JID
+                 b) .togstatus  (reply to media, no JID)
+                    → show group list, user picks with .togstatus <number>
+            ────────────────────────────────────────────────────────────── */
+
+            // ── Resolve media payload (from quoted or direct media) ──────
+            let payload   = null;
             let mediaType = 'Text';
 
-            if (quotedMessage) {
+            // Check for directly-sent media (image/video/audio sent with the command)
+            const directResult = await buildPayloadFromDirectMedia(m);
+            if (directResult) {
+                payload   = directResult.payload;
+                mediaType = directResult.mediaType;
+            } else if (quotedMessage) {
                 mediaType = detectMediaType(quotedMessage);
-                payload = await buildPayloadFromQuoted(quotedMessage);
-
-                if (payload && (payload.video || payload.image) && textAfterCommand) {
+                payload   = await buildPayloadFromQuoted(quotedMessage);
+                if (payload && (payload.video || payload.image) && textAfterCommand && !textAfterCommand.endsWith('@g.us')) {
                     payload.caption = textAfterCommand;
                 }
-            }
-            else if (textAfterCommand) {
+            } else if (textAfterCommand && !textAfterCommand.endsWith('@g.us')) {
+                // Plain text status from DM
+                payload   = { text: textAfterCommand };
                 mediaType = 'Text';
-                payload = { text: textAfterCommand };
             }
-            else {
+
+            // ── Check if a group JID was provided as the argument ────────
+            // Matches "1234567890-1234567890@g.us" pattern anywhere in args
+            const argStr   = args.join(' ').trim();
+            const jidMatch = argStr.match(/\d[\d-]+@g\.us/);
+            const targetJid = jidMatch ? jidMatch[0] : null;
+
+            // ── No media and no JID → show help ─────────────────────────
+            if (!payload && !targetJid) {
                 return sock.sendMessage(jid, {
-                    text: `╭─⌈ 💡 *GROUP STATUS* ⌋\n│\n├─⊷ *${PREFIX}togstatus Your text*\n│  └⊷ Text or reply media\n╰⊷ ${getFooter(m.key.participant || m.key.remoteJid)}`
+                    text:
+                        `╭─⌈ 💡 *GROUP STATUS FROM DM* ⌋\n│\n` +
+                        `├─⊷ *Reply to media + ${PREFIX}togstatus*\n` +
+                        `│  └⊷ Shows your group list → reply with number to post\n` +
+                        `├─⊷ *Reply to media + ${PREFIX}togstatus <GroupJID>*\n` +
+                        `│  └⊷ Posts directly to that group\n` +
+                        `├─⊷ *${PREFIX}togstatus <text>*\n` +
+                        `│  └⊷ Post text status (select group from list)\n` +
+                        `│\n` +
+                        `├─⊷ 💡 Get a group JID: use *${PREFIX}mygroups*\n` +
+                        `╰⊷ ${getFooter(m.key.participant || m.key.remoteJid)}`
                 }, { quoted: m });
             }
 
-            if (!payload) {
-                return sock.sendMessage(jid, {
-                    text: '❌ Could not process the message.'
-                }, { quoted: m });
+            // ── If no media, default to empty text so user picks group ───
+            if (!payload) payload = { text: '' };
+
+            // ── Direct JID: post immediately ─────────────────────────────
+            if (targetJid) {
+                // Verify we're actually in that group
+                let groupName = targetJid;
+                try {
+                    const meta = await sock.groupMetadata(targetJid);
+                    groupName  = meta?.subject || targetJid;
+                } catch {}
+
+                if (!payload || (!payload.image && !payload.video && !payload.audio && !payload.sticker && !payload.text)) {
+                    return sock.sendMessage(jid, {
+                        text: `❌ Please reply to a media message (or include text) along with the group JID.`
+                    }, { quoted: m });
+                }
+
+                await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
+                await sendGroupStatus(sock, targetJid, payload);
+                await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+
+                let successMsg = `✅ *${mediaType}* posted to group status!\n`;
+                successMsg    += `👥 *${groupName}*\n`;
+                if (payload.caption) successMsg += `📝 "${payload.caption.substring(0, 80)}"\n`;
+                if (payload.text)    successMsg += `📄 "${payload.text.substring(0, 80)}"\n`;
+                successMsg    += `\n👁️ Visible to all group members`;
+                return sock.sendMessage(jid, { text: successMsg }, { quoted: m });
             }
 
-            await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
-
-            await sendGroupStatus(sock, jid, payload);
-
-            await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
-
-            let successMsg = `✅ ${mediaType} group status posted!\n`;
-            if (payload.caption) successMsg += `📝 Caption: "${payload.caption.substring(0, 80)}"\n`;
-            if (payload.text) successMsg += `📄 "${payload.text.substring(0, 80)}"\n`;
-            successMsg += `\n👥 Visible to all group members`;
-
-            await sock.sendMessage(jid, { text: successMsg }, { quoted: m });
+            // ── No JID: show group list and cache the media ───────────────
+            await showGroupListForStatus(sock, jid, m, payload, mediaType, PREFIX);
 
         } catch (error) {
             console.error('[TogStatus] Error:', error);
