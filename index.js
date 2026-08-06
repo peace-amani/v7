@@ -9071,6 +9071,18 @@ async function handleIncomingMessage(sock, msg) {
                 commandName = 'mygroups';
                 args = [textMsg.trim()];
             }
+            // If the user replied to a togstatus group-picker list with a plain number,
+            // route it to the togstatus command so the media gets posted to that group.
+            // Check both the stanzaId cache (quoted reply) and the senderJid cache (standalone number).
+            if (!commandName) {
+                const _togByStanza = stanzaId && globalThis.togStatusSessionCache?.has(stanzaId);
+                const _senderKey   = (senderJid || '').split('@')[0].split(':')[0];
+                const _togBySender = _senderKey && globalThis.togStatusSenderCache?.has(_senderKey);
+                if (_togByStanza || _togBySender) {
+                    commandName = 'togstatus';
+                    args = [textMsg.trim()];
+                }
+            }
             // If the user replied to a ?chatbot listgroups message with a plain number,
             // route it to the chatbot command so the JID copy button is shown.
             if (!commandName && stanzaId && globalThis._chatbotGroupListCache?.has(stanzaId)) {

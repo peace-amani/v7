@@ -9,11 +9,15 @@ import { getOwnerName, getFooter } from '../../lib/menuHelper.js';
    we show them a group list and store the media here so the second step
    (replying with a number) can retrieve and post it.
 
-   Key   → sent list message ID (stanzaId)
-   Value → { payload, mediaType, senderJid }
+   Two parallel lookups so the reply-with-number works whether or not the
+   user properly quoted the list message:
+     • by stanzaId  (togStatusSessionCache)   — exact quoted-reply match
+     • by senderJid (togStatusSenderCache)     — fallback for plain number sends
 ───────────────────────────────────────────────────────────────────────────── */
-const togStatusSessionCache = new Map();
+const togStatusSessionCache = new Map(); // stanzaId  → session
+const togStatusSenderCache  = new Map(); // senderJid → session
 globalThis.togStatusSessionCache = togStatusSessionCache;
+globalThis.togStatusSenderCache  = togStatusSenderCache;
 const MAX_SESSION_CACHE = 30;
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -188,14 +192,24 @@ async function showGroupListForStatus(sock, jid, msg, payload, mediaType, PREFIX
     }
     text += `│\n╰─ Reply to this message with *${PREFIX}togstatus <number>* to post`;
 
-    const sent   = await sock.sendMessage(jid, { text }, { quoted: msg });
-    const sentId = sent?.key?.id;
+    const sent      = await sock.sendMessage(jid, { text }, { quoted: msg });
+    const sentId    = sent?.key?.id;
+    const senderJid = msg.key.participant || (msg.key.fromMe ? sock.user?.id : jid);
+    const session   = { payload, mediaType, groups: resolved, senderJid };
+
+    // Store by stanzaId (exact quoted-reply match)
     if (sentId) {
-        const senderJid = msg.key.participant || (msg.key.fromMe ? sock.user?.id : jid);
-        togStatusSessionCache.set(sentId, { payload, mediaType, groups: resolved, senderJid });
+        togStatusSessionCache.set(sentId, session);
         if (togStatusSessionCache.size > MAX_SESSION_CACHE) {
             togStatusSessionCache.delete(togStatusSessionCache.keys().next().value);
         }
+    }
+
+    // Store by senderJid (fallback for plain-number sends without quoting)
+    const senderKey = senderJid?.split('@')[0] || jid.split('@')[0];
+    togStatusSenderCache.set(senderKey, session);
+    if (togStatusSenderCache.size > MAX_SESSION_CACHE) {
+        togStatusSenderCache.delete(togStatusSenderCache.keys().next().value);
     }
 }
 
@@ -221,32 +235,66 @@ export default {
 
             /* ──────────────────────────────────────────────────────────────
                STEP 2 — DM reply-with-number handler
-               User replied to the group list we sent them with a number.
+               Triggered when the user replies to (or follows up after) the
+               group list we sent them.  Two lookup paths:
+                 1. stanzaId  → exact quoted-reply match (most reliable)
+                 2. senderJid → fallback for plain standalone number sends
             ────────────────────────────────────────────────────────────── */
-            if (isDM && quotedId && togStatusSessionCache.has(quotedId) && /^\d+$/.test(textAfterCommand)) {
-                const session  = togStatusSessionCache.get(quotedId);
-                const idx      = parseInt(textAfterCommand, 10) - 1;
-                const group    = session.groups[idx];
+            // Resolve the numeric input — could come from textAfterCommand or args[0]
+            const _numStr = /^\d+$/.test(textAfterCommand)
+                ? textAfterCommand
+                : (args[0] && /^\d+$/.test(args[0]) ? args[0] : null);
 
-                if (!group) {
-                    return sock.sendMessage(jid, {
-                        text: `❌ No group at position *${textAfterCommand}*. The list has *${session.groups.length}* groups.`
-                    }, { quoted: m });
+            if (isDM && _numStr) {
+                const senderKey = (m.key.participant || (m.key.fromMe ? sock.user?.id : jid) || jid)
+                    .split('@')[0].split(':')[0];
+
+                // Lookup 1: by quoted stanzaId
+                let session = (quotedId && togStatusSessionCache.has(quotedId))
+                    ? togStatusSessionCache.get(quotedId)
+                    : null;
+
+                // Lookup 2: by sender JID (covers standalone number sends)
+                if (!session && togStatusSenderCache.has(senderKey)) {
+                    session = togStatusSenderCache.get(senderKey);
                 }
 
-                await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
-                await sendGroupStatus(sock, group.id, session.payload);
-                await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
+                if (session) {
+                    const idx   = parseInt(_numStr, 10) - 1;
+                    const group = session.groups[idx];
 
-                togStatusSessionCache.delete(quotedId); // clean up
+                    if (!group) {
+                        return sock.sendMessage(jid, {
+                            text: `❌ No group at position *${_numStr}*. The list has *${session.groups.length}* groups.\n\nSend *${PREFIX}togstatus* (replying to your media) to get a fresh list.`
+                        }, { quoted: m });
+                    }
 
-                let successMsg = `✅ *${session.mediaType}* posted to group status!\n`;
-                successMsg    += `👥 *${group.name}*\n`;
-                if (session.payload.caption) successMsg += `📝 "${session.payload.caption.substring(0, 80)}"\n`;
-                if (session.payload.text)    successMsg += `📄 "${session.payload.text.substring(0, 80)}"\n`;
-                successMsg    += `\n👁️ Visible to all group members`;
+                    await sock.sendMessage(jid, { react: { text: '⏳', key: m.key } });
+                    await sendGroupStatus(sock, group.id, session.payload);
+                    await sock.sendMessage(jid, { react: { text: '✅', key: m.key } });
 
-                return sock.sendMessage(jid, { text: successMsg }, { quoted: m });
+                    // Clean up both caches
+                    if (quotedId) togStatusSessionCache.delete(quotedId);
+                    togStatusSenderCache.delete(senderKey);
+
+                    let successMsg = `✅ *${session.mediaType}* posted to group status!\n`;
+                    successMsg    += `👥 *${group.name}*\n`;
+                    if (session.payload.caption) successMsg += `📝 "${session.payload.caption.substring(0, 80)}"\n`;
+                    if (session.payload.text)    successMsg += `📄 "${session.payload.text.substring(0, 80)}"\n`;
+                    successMsg    += `\n👁️ Visible to all group members`;
+
+                    return sock.sendMessage(jid, { text: successMsg }, { quoted: m });
+                }
+
+                // Session not found (e.g. bot restarted) — give clear guidance
+                if (quotedId || togStatusSessionCache.size === 0) {
+                    // Only show stale message if they're clearly replying to something
+                    if (quotedId) {
+                        return sock.sendMessage(jid, {
+                            text: `⚠️ That session has expired (bot may have restarted).\n\nPlease reply to your image/video again with *${PREFIX}togstatus* to get a fresh group list.`
+                        }, { quoted: m });
+                    }
+                }
             }
 
             /* ──────────────────────────────────────────────────────────────
