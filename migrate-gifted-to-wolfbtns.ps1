@@ -95,6 +95,8 @@ Write-Step "Patched $changedCount file(s) total"
 # --- 3. Verify with node --check (non-blocking, reports issues) ----------
 Write-Step "Verifying every changed file with node --check"
 Push-Location $RepoRoot
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $failCount = 0
 foreach ($file in $allJsFiles) {
     $relPath = $file.FullName.Substring((Resolve-Path $RepoRoot).Path.Length).TrimStart('\', '/')
@@ -104,6 +106,7 @@ foreach ($file in $allJsFiles) {
         $failCount++
     }
 }
+$ErrorActionPreference = $prevEAP
 Pop-Location
 
 if ($failCount -eq 0) {
