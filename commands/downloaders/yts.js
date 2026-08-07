@@ -6,7 +6,7 @@ import { isButtonModeEnabled } from '../../lib/buttonMode.js';
 
 const _require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = _require('gifted-btns'); } catch (e) {}
+try { giftedBtns = (await import('wolfbtns')); } catch (e) {}
 
 async function searchVideos(query, limit = 15) {
   try {

@@ -8,7 +8,7 @@ import { isButtonModeEnabled } from '../../lib/buttonMode.js';
 
 const require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = require('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 const LANG_CODES = ['en', 'id', 'ja', 'es', 'fr', 'de', 'ru', 'pt', 'ar', 'hi', 'zh', 'ko'];
 

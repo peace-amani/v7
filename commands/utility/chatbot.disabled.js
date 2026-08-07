@@ -7,7 +7,7 @@ import { isButtonModeEnabled } from '../../lib/buttonMode.js';
 
 const _requireCb = createRequire(import.meta.url);
 let giftedBtnsCb;
-try { giftedBtnsCb = _requireCb('gifted-btns'); } catch (e) {}
+try { giftedBtnsCb = (await import('wolfbtns')); } catch (e) {}
 
 const availableVoices = [
   "alloy", "echo", "fable", "onyx", "nova", "shimmer", "adam", "antoni",

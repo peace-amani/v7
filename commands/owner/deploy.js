@@ -6,11 +6,11 @@
 import { createRequire } from 'module';
 import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 import { isButtonModeEnabled } from '../../lib/buttonMode.js';
-import { isGiftedBtnsAvailable } from '../../lib/buttonHelper.js';
+import { isWolfBtnsAvailable } from '../../lib/buttonHelper.js';
 
 const _require = createRequire(import.meta.url);
-let _giftedBtns = null;
-try { _giftedBtns = _require('gifted-btns'); } catch {}
+let _wolfBtns = null;
+try { _wolfBtns = await import('wolfbtns'); } catch {}
 
 // ── Platform definitions ────────────────────────────────────────────────────
 const PLATFORMS = {
@@ -122,7 +122,7 @@ export default {
         const chatId = msg.key.remoteJid;
         const sub = args[0]?.toLowerCase();
         const buttonsActive = isButtonModeEnabled();
-        const btnsReady = buttonsActive && isGiftedBtnsAvailable() && _giftedBtns;
+        const btnsReady = buttonsActive && isWolfBtnsAvailable() && _wolfBtns;
 
         // ── Sub-command: show platform guide + Deploy Now button ──────────────
         if (sub && PLATFORMS[sub]) {
@@ -139,7 +139,7 @@ export default {
                     })
                 }];
                 try {
-                    await _giftedBtns.sendInteractiveMessage(sock, chatId, {
+                    await _wolfBtns.sendInteractiveMessage(sock, chatId, {
                         text: guideText,
                         interactiveButtons: urlButton
                     });
@@ -181,7 +181,7 @@ export default {
                 })
             }));
             try {
-                await _giftedBtns.sendInteractiveMessage(sock, chatId, {
+                await _wolfBtns.sendInteractiveMessage(sock, chatId, {
                     text: `🚀 *DEPLOYMENT GUIDE*\n\nSelect a platform to get the hosting guide:`,
                     interactiveButtons
                 });

@@ -4,11 +4,11 @@ import db from '../../lib/database.js';
 import { getBotName } from '../../lib/botname.js';
 import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 import { isButtonModeEnabled } from '../../lib/buttonMode.js';
-import { isGiftedBtnsAvailable } from '../../lib/buttonHelper.js';
+import { isWolfBtnsAvailable } from '../../lib/buttonHelper.js';
 
 const _require = createRequire(import.meta.url);
-let _giftedBtns = null;
-try { _giftedBtns = _require('gifted-btns'); } catch {}
+let _wolfBtns = null;
+try { _wolfBtns = (await import('wolfbtns')); } catch {}
 
 const publicModeChatCooldowns = new Map();
 const PUBLIC_MODE_COOLDOWN_MS = 5000;

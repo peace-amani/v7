@@ -113,7 +113,7 @@ export default {
             `━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `${trimmed}`;
 
-        const _gb = globalThis._giftedBtns;
+        const _gb = globalThis._wolfBtns;
         if (_gb && typeof _gb.sendInteractiveMessage === 'function') {
             try {
                 await _gb.sendInteractiveMessage(sock, chatId, {

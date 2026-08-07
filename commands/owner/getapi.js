@@ -3,8 +3,8 @@ import { getBotName } from '../../lib/botname.js';
 import { createRequire } from 'module';
 
 const _require = createRequire(import.meta.url);
-let _giftedBtns = null;
-try { _giftedBtns = _require('gifted-btns'); } catch {}
+let _wolfBtns = null;
+try { _wolfBtns = await import('wolfbtns'); } catch {}
 
 export default {
     name: 'getapi',
@@ -89,9 +89,9 @@ export default {
             `│\n` +
             `╰⊷ *Powered by ${BOT_NAME.toUpperCase()}*`;
 
-        if (_giftedBtns?.sendInteractiveMessage) {
+        if (_wolfBtns?.sendInteractiveMessage) {
             try {
-                await _giftedBtns.sendInteractiveMessage(sock, chatJid, {
+                await _wolfBtns.sendInteractiveMessage(sock, chatJid, {
                     text,
                     footer: BOT_NAME,
                     interactiveButtons: [

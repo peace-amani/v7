@@ -11,7 +11,7 @@ import { createRequire } from 'module';
 
 const _req = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = _req('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

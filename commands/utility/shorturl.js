@@ -5,7 +5,7 @@ import { isButtonModeEnabled } from '../../lib/buttonMode.js';
 
 const require = createRequire(import.meta.url);
 let sendInteractiveMessage;
-try { ({ sendInteractiveMessage } = require('gifted-btns')); } catch (e) {}
+try { ({ sendInteractiveMessage } = (await import('wolfbtns'))); } catch (e) {}
 
 export default {
   name: 'shorturl',

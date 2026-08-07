@@ -21,7 +21,7 @@ function getCaption(uid) { return typeof _getUserCaption === 'function' ? _getUs
 
 const _req = createRequire(import.meta.url);
 let giftedBtnsTw;
-try { giftedBtnsTw = _req('gifted-btns'); } catch {}
+try { giftedBtnsTw = (await import('wolfbtns')); } catch {}
 
 // ── Stream a URL to a temp file ───────────────────────────────────────────────
 async function downloadFile(url, filePath) {

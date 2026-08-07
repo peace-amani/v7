@@ -11,7 +11,7 @@ import { setActionSession } from '../../lib/actionSession.js';
 
 const _requireTt = createRequire(import.meta.url);
 let giftedBtnsTt;
-try { giftedBtnsTt = _requireTt('gifted-btns'); } catch (e) {}
+try { giftedBtnsTt = (await import('wolfbtns')); } catch (e) {}
 
 const execAsync = promisify(exec);
 

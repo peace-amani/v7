@@ -4,7 +4,7 @@ import { getBotName } from '../../lib/botname.js';
 
 const require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = require('gifted-btns'); } catch (e) {}
+try { giftedBtns = (await import('wolfbtns')); } catch (e) {}
 
 export default {
   name: 'snext',

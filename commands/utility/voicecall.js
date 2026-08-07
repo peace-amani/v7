@@ -4,7 +4,7 @@ import { getOwnerName, getFooter } from '../../lib/menuHelper.js';
 const _require = createRequire(import.meta.url);
 
 let giftedBtns;
-try { giftedBtns = _require('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 // Extract a usable call link URL from whatever createCallLink returns
 function extractCallUrl(result, type) {

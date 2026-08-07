@@ -201,7 +201,7 @@
 //                 try {
 //                     const { createRequire } = await import('module');
 //                     const require = createRequire(import.meta.url);
-//                     const { sendInteractiveMessage } = require('gifted-btns');
+//                     const { sendInteractiveMessage } = (await import('wolfbtns'));
 //                     await sendInteractiveMessage(sock, chatId, {
 //                         text: msgText,
 //                         footer: '🐺 Silent Wolf Bot',
@@ -450,7 +450,7 @@ export default {
                 try {
                     const { createRequire } = await import('module');
                     const require = createRequire(import.meta.url);
-                    const { sendInteractiveMessage } = require('gifted-btns');
+                    const { sendInteractiveMessage } = (await import('wolfbtns'));
                     await sendInteractiveMessage(sock, chatId, {
                         text: msgText,
                         footer: '🐺 Silent Wolf Bot',

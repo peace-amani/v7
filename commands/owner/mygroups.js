@@ -51,7 +51,7 @@ export default {
             try {
                 const { createRequire } = await import('module');
                 const require = createRequire(import.meta.url);
-                const { sendInteractiveMessage } = require('gifted-btns');
+                const { sendInteractiveMessage } = (await import('wolfbtns'));
                 return await sendInteractiveMessage(sock, chatId, {
                     text: resultText,
                     footer: getBotName(),

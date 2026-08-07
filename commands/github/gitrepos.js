@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { setActionSession, getActionSession, deleteActionSession } from '../../lib/actionSession.js';
-import { sendInteractiveWithImage, isGiftedBtnsAvailable } from '../../lib/buttonHelper.js';
+import { sendInteractiveWithImage, isWolfBtnsAvailable } from '../../lib/buttonHelper.js';
 import { getOwnerName, getMenuImageBuffer, getFooter} from '../../lib/menuHelper.js';
 
 const GH_API = 'https://api.github.com';
@@ -167,7 +167,7 @@ async function sendCategoryButtons(sock, jid, m, PREFIX, login, totalCount, priv
 
     // Try interactive buttons first; fall back to text + numbered hints if gifted-btns
     // isn't loaded or the relay fails (e.g. older WhatsApp clients).
-    if (isGiftedBtnsAvailable()) {
+    if (isWolfBtnsAvailable()) {
         try {
             let imageBuffer = null;
             try { imageBuffer = (await getMenuImageBuffer())?.buffer || null; } catch {}

@@ -4,7 +4,7 @@ import { getBotName } from '../../lib/botname.js';
 
 const _requireAs = createRequire(import.meta.url);
 let giftedBtnsAs;
-try { giftedBtnsAs = _requireAs('gifted-btns'); } catch (e) {}
+try { giftedBtnsAs = (await import('wolfbtns')); } catch (e) {}
 
 const SPAM_THRESHOLD_DEFAULT = 3;
 const SPAM_WINDOW_MS = 10000;

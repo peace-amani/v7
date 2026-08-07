@@ -4,7 +4,7 @@ import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 
 const _requireAl = createRequire(import.meta.url);
 let giftedBtnsAl;
-try { giftedBtnsAl = _requireAl('gifted-btns'); } catch (e) {}
+try { giftedBtnsAl = (await import('wolfbtns')); } catch (e) {}
 
 const URL_PATTERNS = [
     /https?:\/\/[^\s<>]+/gi,

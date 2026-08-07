@@ -8,7 +8,7 @@
 //   dms     — responds only in private (1-on-1) messages
 //   silent  — responds only to the owner (stealth / maintenance)
 //   buttons — attaches interactive quick-reply buttons to all responses
-//              (requires the gifted-btns library)
+//              (requires wolfbtns)
 //   channel — all responses are forwarded from a WhatsApp Channel
 //   default — normal text responses; turns off buttons AND channel mode
 //
@@ -19,7 +19,7 @@
 // Buttons mode is stored separately in bot_button_mode.json (see buttonMode.js).
 // Channel mode is stored in bot_channel_mode.json (see channelMode.js).
 //
-// If gifted-btns is installed and buttons mode is active, the command menu
+// If wolfbtns is installed and buttons mode is active, the command menu
 // is sent as an interactive button list for easier switching.
 
 import { writeFileSync, readFileSync, existsSync } from 'fs';
@@ -27,19 +27,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { isButtonModeEnabled, setButtonMode } from '../../lib/buttonMode.js';
-import { isGiftedBtnsAvailable } from '../../lib/buttonHelper.js';
+import { isWolfBtnsAvailable } from '../../lib/buttonHelper.js';
 import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 import { isChannelModeEnabled, setChannelMode, getChannelInfo } from '../../lib/channelMode.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Try to load gifted-btns at require-time.  The library may not be installed
+// Try to load wolfbtns at import-time.  The library may not be installed
 // in every deployment, so we catch the error and fall back to plain text.
 const _require = createRequire(import.meta.url);
-let _giftedBtns = null;
+let _wolfBtns = null;
 try {
-    _giftedBtns = _require('gifted-btns');
+    _wolfBtns = await import('wolfbtns');
 } catch {}
 
 export default {
@@ -88,7 +88,7 @@ export default {
             },
             'buttons': {
                 name: '🔘 Buttons Mode',
-                description: 'All bot responses use interactive buttons (gifted-btns)',
+                description: 'All bot responses use interactive buttons (wolfbtns)',
                 icon: '🔘'
             },
             'channel': {
@@ -108,9 +108,10 @@ export default {
             let currentMode = this.getCurrentMode();
             const buttonsActive = isButtonModeEnabled();
 
-            // If buttons mode is on and gifted-btns is installed, send an
+            // If buttons mode is on and wolfbtns is installed, send an
             // interactive button picker so the owner can tap to switch modes
-            if (buttonsActive && isGiftedBtnsAvailable() && _giftedBtns) {
+            process.stdout.write(`[DBG-A] buttonsActive=${buttonsActive} avail=${isWolfBtnsAvailable()} has=${!!_wolfBtns}\n`);
+            if (buttonsActive && isWolfBtnsAvailable() && _wolfBtns) {
                 const modeButtons = [
                     { display: '🌍 Public', id: 'public' },
                     { display: '💬 DMs', id: 'dms' },
@@ -131,7 +132,7 @@ export default {
                 }));
 
                 try {
-                    await _giftedBtns.sendInteractiveMessage(sock, chatId, {
+                    await _wolfBtns.sendInteractiveMessage(sock, chatId, {
                         text: `🤖 *Select Bot Mode*\n\nCurrent: ${modes[currentMode]?.icon || ''} *${currentMode}*${buttonsActive ? ' + 🔘 Buttons' : ''}`,
                         interactiveButtons
                     });
@@ -207,10 +208,11 @@ export default {
             if (requestedMode === 'buttons') {
                 setButtonMode(true, cleaned.cleanNumber || 'Unknown');
 
-                // Confirm with interactive buttons if gifted-btns is available
-                if (isGiftedBtnsAvailable() && _giftedBtns) {
+                // Confirm with interactive buttons if wolfbtns is available
+                process.stdout.write(`[DBG-B] avail=${isWolfBtnsAvailable()} has=${!!_wolfBtns}\n`);
+                if (isWolfBtnsAvailable() && _wolfBtns) {
                     try {
-                        await _giftedBtns.sendInteractiveMessage(sock, chatId, {
+                        await _wolfBtns.sendInteractiveMessage(sock, chatId, {
                             text: `✅ *Buttons Mode Activated*\n\nTap any button to switch mode`,
                             interactiveButtons: buildModeInteractiveButtons()
                         });
@@ -296,9 +298,10 @@ export default {
             const buttonsActive = isButtonModeEnabled();
 
             // Confirm with interactive buttons if buttons mode is active
-            if (buttonsActive && isGiftedBtnsAvailable() && _giftedBtns) {
+            process.stdout.write(`[DBG-C] buttonsActive=${buttonsActive} avail=${isWolfBtnsAvailable()} has=${!!_wolfBtns}\n`);
+            if (buttonsActive && isWolfBtnsAvailable() && _wolfBtns) {
                 try {
-                    await _giftedBtns.sendInteractiveMessage(sock, chatId, {
+                    await _wolfBtns.sendInteractiveMessage(sock, chatId, {
                         text: `✅ *Mode: ${modeInfo.name}*\n\nTap any button to switch mode`,
                         interactiveButtons: buildModeInteractiveButtons()
                     });

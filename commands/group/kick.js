@@ -18,7 +18,7 @@ function resolvePhoneJid(targetP, fallbackJid) {
 
 const _requireKick = createRequire(import.meta.url);
 let giftedBtnsKick;
-try { giftedBtnsKick = _requireKick('gifted-btns'); } catch (e) {}
+try { giftedBtnsKick = (await import('wolfbtns')); } catch (e) {}
 
 export default {
   name: 'kick',

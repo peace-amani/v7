@@ -8,7 +8,7 @@ import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 
 const _require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = _require('gifted-btns'); } catch (e) {}
+try { giftedBtns = (await import('wolfbtns')); } catch (e) {}
 
 const CACHE_CLEAN_INTERVAL = 2 * 60 * 60 * 1000;
 const MAX_MESSAGE_CACHE = 200;

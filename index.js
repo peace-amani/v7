@@ -5893,14 +5893,12 @@ async function startBot(loginMode = 'auto', loginData = null) {
         // The current font config is stored in globalThis._fontConfig.
         const originalSendMessage = sock.sendMessage.bind(sock);
         
-        let _giftedBtns = null;
+        let _wolfBtns = null;
         try {
-            const { createRequire } = await import('module');
-            const _require = createRequire(import.meta.url);
-            _giftedBtns = _require('gifted-btns');
-            globalThis._giftedBtns = _giftedBtns;   // exposed for cpanel & other commands
+            _wolfBtns = await import('wolfbtns');
+            globalThis._wolfBtns = _wolfBtns;   // exposed for cpanel & other commands
         } catch (e) {
-            UltraCleanLogger.info('⚠️ gifted-btns not available for button mode');
+            UltraCleanLogger.info('⚠️ wolfbtns not available for button mode');
         }
         
         let _skipButtonWrap = false;
@@ -6087,7 +6085,8 @@ async function startBot(loginMode = 'auto', loginData = null) {
             if (_activeCmd && _noWrapCommands.has(_activeCmd.command)) {
                 return _storeResult(await _sendWithRetry(jid, content, options, ...rest));
             }
-            if (isButtonModeEnabled() && _giftedBtns && content) {
+     console.log('[DEBUG index.js]', { buttonModeEnabled: isButtonModeEnabled(), hasWolfBtns: !!_wolfBtns });
+if (isButtonModeEnabled() && _wolfBtns && content) {
                 if (!content.buttons && !content.templateButtons && !content.interactiveButtons && !content.contacts && !content.react) {
                     const msgText = content.text || content.caption || '';
                     const isTextOnly = typeof content.text === 'string' && content.text.length > 0;
@@ -6195,7 +6194,7 @@ async function startBot(loginMode = 'auto', loginData = null) {
                                     const isGroupJid = jid.endsWith('@g.us');
                                     if (isGroupJid) {
                                         try {
-                                            const sendResult = await _giftedBtns.sendInteractiveMessage(sock, jid, btnPayload);
+                                            const sendResult = await _wolfBtns.sendInteractiveMessage(sock, jid, btnPayload);
                                             try {
                                                 if (sendResult?.key?.id && store) store.addSentMessage(jid, sendResult.key.id, content);
                                             } catch {}
@@ -6656,7 +6655,7 @@ async function startBot(loginMode = 'auto', loginData = null) {
                         
                         const targetJid = (ownerInfo && ownerInfo.ownerJid) ? ownerInfo.ownerJid : sock.user.id;
                         // Always use plain text for the connection message — it goes to the owner's DM,
-                        // and gifted-btns interactive messages fail silently in DMs on modern WhatsApp.
+                        // and wolfbtns interactive messages fail silently in DMs on modern WhatsApp.
                         let sendPromise;
                         sendPromise = originalSendMessage(targetJid, { text: successMessage });
                         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));

@@ -13,7 +13,7 @@ import { isButtonModeEnabled } from '../../lib/buttonMode.js';
 
 const _req = createRequire(import.meta.url);
 let giftedBtnsTg;
-try { giftedBtnsTg = _req('gifted-btns'); } catch {}
+try { giftedBtnsTg = (await import('wolfbtns')); } catch {}
 
 const MAX_STICKERS = 6;   // max sticker images to send per pack
 const MAX_PACKS    = 5;   // max packs to show in button picker

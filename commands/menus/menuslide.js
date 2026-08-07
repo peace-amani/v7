@@ -4,7 +4,7 @@ import { getBotName } from '../../lib/botname.js';
 
 const _require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = _require('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 const BRAND = () => getOwnerName().toUpperCase();
 

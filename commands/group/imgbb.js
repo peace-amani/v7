@@ -89,7 +89,7 @@ export default {
       try {
         const { createRequire } = await import('module');
         const require = createRequire(import.meta.url);
-        const { sendInteractiveMessage } = require('gifted-btns');
+        const { sendInteractiveMessage } = (await import('wolfbtns'));
         await sendInteractiveMessage(sock, jid, {
           image: { url: result.thumb || result.url },
           text: successText,

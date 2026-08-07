@@ -60,8 +60,8 @@ export default {
 
         await sock.sendMessage(chatId, { react: { text: '✅', key: msg.key } });
 
-        // Send with copy buttons when gifted-btns is available
-        const btns = globalThis._giftedBtns;
+        // Send with copy buttons when wolfbtns is available
+        const btns = globalThis._wolfBtns;
         if (btns?.sendInteractiveMessage) {
             try {
                 await btns.sendInteractiveMessage(sock, chatId, {

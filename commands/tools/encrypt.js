@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 
 const _require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = _require('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 const API = 'https://apiskeith.top/tools/encrypt';
 

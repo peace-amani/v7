@@ -8,7 +8,7 @@ import { proxyFetch } from '../../lib/proxyFetch.js';
 
 const _req = createRequire(import.meta.url);
 let giftedBtnsFb;
-try { giftedBtnsFb = _req('gifted-btns'); } catch (e) {}
+try { giftedBtnsFb = (await import('wolfbtns')); } catch (e) {}
 
 const API_KEY  = process.env.XWOLF_API_KEY || process.env.XWOLF_BOT_KEY || 'wxa_u_xwk7sch6xj';
 const XWOLF    = 'https://apis.xwolf.space/api/download';

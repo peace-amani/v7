@@ -12,7 +12,7 @@ import { sigLog } from '../../lib/sigLog.js';
 
 const require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = require('gifted-btns'); } catch (e) {}
+try { giftedBtns = (await import('wolfbtns')); } catch (e) {}
 
 // ── Search chain: gifted yts → xwolf → yt-search ─────────────────────────
 async function searchVideos(query, limit = 5) {

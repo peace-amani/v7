@@ -9,7 +9,7 @@ import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 
 const _requireAds = createRequire(import.meta.url);
 let giftedBtnsAds;
-try { giftedBtnsAds = _requireAds('gifted-btns'); } catch (e) {}
+try { giftedBtnsAds = (await import('wolfbtns')); } catch (e) {}
 
 const CACHE_CLEAN_INTERVAL = 1 * 60 * 60 * 1000;
 const MAX_CACHE_AGE = 3 * 60 * 60 * 1000;

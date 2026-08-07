@@ -3,7 +3,7 @@ import { getOwnerName, getFooter} from '../../lib/menuHelper.js';
 
 const require = createRequire(import.meta.url);
 let giftedBtns;
-try { giftedBtns = require('gifted-btns'); } catch {}
+try { giftedBtns = (await import('wolfbtns')); } catch {}
 
 const GROUP_LINK_RE = /(?:https?:\/\/)?chat\.whatsapp\.com\/([A-Za-z0-9_-]{10,})/i;
 const INVITE_CODE_RE = /^[A-Za-z0-9_-]{10,}$/;
