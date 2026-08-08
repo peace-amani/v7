@@ -6187,23 +6187,19 @@ if (isButtonModeEnabled() && _wolfBtns && content) {
                                 }
                                 
                                 if (isTextOnly && !hasMedia) {
-                                    // Only send interactive buttons in group chats.
-                                    // In DMs, WhatsApp silently discards interactive/button messages
-                                    // on modern clients — the bot logs "sent" but the user sees nothing.
-                                    // For DMs we fall through to the plain _sendWithRetry below.
-                                    const isGroupJid = jid.endsWith('@g.us');
-                                    if (isGroupJid) {
+                                    // Interactive buttons now work correctly in both DMs and
+                                    // groups (fixed by adding the required additionalNodes
+                                    // stanza in wolfbtns -- see wolfbtns CHANGES.md). No longer
+                                    // restricted to groups only.
+                                    try {
+                                        const sendResult = await _wolfBtns.sendInteractiveMessage(sock, jid, btnPayload);
                                         try {
-                                            const sendResult = await _wolfBtns.sendInteractiveMessage(sock, jid, btnPayload);
-                                            try {
-                                                if (sendResult?.key?.id && store) store.addSentMessage(jid, sendResult.key.id, content);
-                                            } catch {}
-                                            return sendResult;
-                                        } catch {
-                                            return await _sendWithRetry(jid, content, options, ...rest);
-                                        }
+                                            if (sendResult?.key?.id && store) store.addSentMessage(jid, sendResult.key.id, content);
+                                        } catch {}
+                                        return sendResult;
+                                    } catch {
+                                        return await _sendWithRetry(jid, content, options, ...rest);
                                     }
-                                    // DMs: fall through to plain text send
                                 }
                             }
                         } catch (btnErr) {
@@ -6654,10 +6650,17 @@ if (isButtonModeEnabled() && _wolfBtns && content) {
                         const successMessage = `${_sGreeting}╭⊷『 🐺 ${getCurrentBotName()} 』\n│\n├⊷ *Name:* ${getCurrentBotName()}\n├⊷ *Prefix:* ${getCurrentPrefix() || 'none (prefixless)'}\n├⊷ *Owner:* (${displayOwnerNumber})\n├⊷ *Platform:* ${detectPlatform()}\n├⊷ *Mode:* ${BOT_MODE}\n└⊷ *Status:* ✅ Connected\n\n╰⊷ *Silent Wolf Online* 🐾\n\n─────────────────────\n⭐ Follow me on GitHub: ${PROFILE_URL}`;
                         
                         const targetJid = (ownerInfo && ownerInfo.ownerJid) ? ownerInfo.ownerJid : sock.user.id;
-                        // Always use plain text for the connection message — it goes to the owner's DM,
-                        // and wolfbtns interactive messages fail silently in DMs on modern WhatsApp.
                         let sendPromise;
-                        sendPromise = originalSendMessage(targetJid, { text: successMessage });
+                        if (_wolfBtns?.sendInteractiveMessage) {
+                            sendPromise = _wolfBtns.sendInteractiveMessage(sock, targetJid, {
+                                text: successMessage,
+                                interactiveButtons: [
+                                    { name: 'cta_url', buttonParamsJson: JSON.stringify({ display_text: '🔗 Open GitHub', url: PROFILE_URL, merchant_url: PROFILE_URL }) }
+                                ]
+                            }).catch(() => originalSendMessage(targetJid, { text: successMessage }));
+                        } else {
+                            sendPromise = originalSendMessage(targetJid, { text: successMessage });
+                        }
                         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
                         await Promise.race([sendPromise, timeoutPromise]);
                         _lastConnectionMsgTime = Date.now();
